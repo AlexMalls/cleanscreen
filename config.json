@@ -5,10 +5,11 @@
   "fallbackSound": "https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg",
   "erase": {
     "radius": 40,
-    "strength": 0.2
+    "strength": 0.3
   },
-  "clearThreshold": 0.10
+  "clearThreshold": 0.15
 }
+
 
 
 
