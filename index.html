@@ -58,12 +58,7 @@
             border-radius: 8px;
             box-shadow: 0 0 10px rgba(0,0,0,0.3);
         }
-        #sidebar h3 {
-            margin: 0 0 8px;
-            font-size: 16px;
-            border-bottom: 1px solid #555;
-            padding-bottom: 6px;
-        }
+        #sidebar h3 { margin: 0 0 8px; font-size: 16px; border-bottom: 1px solid #555; padding-bottom: 6px; }
         #sidebar p { margin: 8px 0; word-break: break-all; }
         #status { font-size: 12px; color: #aaa; }
 
@@ -243,7 +238,7 @@
 
         function getPos(e) {
             const rect = coverCanvas.getBoundingClientRect();
-            if(e.touches && e.touches.length) return {x:e.touches[0].clientX - rect.left, y:e.touches[0].clientY - rect.top};
+            if(e.touches && e.touches.length) return {x:e.clientX - rect.left || e.touches[0].clientX - rect.left, y:e.clientY - rect.top || e.touches[0].clientY - rect.top};
             return {x:e.clientX - rect.left, y:e.clientY - rect.top};
         }
 
@@ -261,13 +256,46 @@
             coverCtx.globalCompositeOperation = "source-over";
         }
 
+        // Bind multi-touch e mouse simultâneo
         function bindInput() {
-            coverCanvas.addEventListener('mousedown', e => { if(!inputEnabled) return; isDrawing=true; scratch(getPos(e).x,getPos(e).y); });
+            // Mouse
+            coverCanvas.addEventListener('mousedown', e => {
+                if(!inputEnabled) return;
+                isDrawing=true;
+                scratch(getPos(e).x,getPos(e).y);
+            });
             window.addEventListener('mouseup', ()=>isDrawing=false);
-            coverCanvas.addEventListener('mousemove', e => { if(!isDrawing||!inputEnabled) return; scratch(getPos(e).x,getPos(e).y); if((++moveTick%3)===0) checkCleared(); });
-            coverCanvas.addEventListener('touchstart', e=>{ if(!inputEnabled) return; isDrawing=true; scratch(getPos(e).x,getPos(e).y); },{passive:true});
-            coverCanvas.addEventListener('touchend', ()=>isDrawing=false,{passive:true});
-            coverCanvas.addEventListener('touchmove', e=>{ if(!isDrawing||!inputEnabled) return; e.preventDefault(); scratch(getPos(e).x,getPos(e).y); if((++moveTick%3)===0) checkCleared();},{passive:false});
+            coverCanvas.addEventListener('mousemove', e => {
+                if(!isDrawing||!inputEnabled) return;
+                scratch(getPos(e).x,getPos(e).y);
+                if((++moveTick%3)===0) checkCleared();
+            });
+
+            // Touch multi-touch
+            coverCanvas.addEventListener('touchstart', e => {
+                if(!inputEnabled) return;
+                isDrawing=true;
+                for(let t=0; t<e.touches.length; t++){
+                    const touch = e.touches[t];
+                    const pos = {x: touch.clientX - coverCanvas.getBoundingClientRect().left, y: touch.clientY - coverCanvas.getBoundingClientRect().top};
+                    scratch(pos.x,pos.y);
+                }
+            }, {passive:true});
+
+            coverCanvas.addEventListener('touchmove', e => {
+                if(!isDrawing||!inputEnabled) return;
+                e.preventDefault();
+                for(let t=0; t<e.touches.length; t++){
+                    const touch = e.touches[t];
+                    const pos = {x: touch.clientX - coverCanvas.getBoundingClientRect().left, y: touch.clientY - coverCanvas.getBoundingClientRect().top};
+                    scratch(pos.x,pos.y);
+                }
+                if((++moveTick%3)===0) checkCleared();
+            }, {passive:false});
+
+            coverCanvas.addEventListener('touchend', e => {
+                if(e.touches.length===0) isDrawing=false;
+            }, {passive:true});
         }
 
         function checkCleared() {
@@ -281,7 +309,6 @@
 
             if(!gameEnded && percent>=config.clearThreshold) {
                 gameEnded=true;
-                // Se cronômetro ativo, pausa e fade-out
                 if(timerInterval){
                     clearInterval(timerInterval);
                     timerInterval=null;
@@ -306,8 +333,8 @@
         function autoClearSmooth() {
             const imgData = coverCtx.getImageData(0,0,W,H);
             const data = imgData.data;
-            let alphaFactor = 1; // começa com alpha total
-            const step = 0.0001; // quanto reduzir por frame (0.02 = 2% por frame)
+            let alphaFactor = 1;
+            const step = 0.0001;
             
             function fade() {
                 alphaFactor -= step;
@@ -316,17 +343,13 @@
                     return;
                 }
                 for(let i=3;i<data.length;i+=4){
-                    data[i] = data[i]*alphaFactor; // reduz alpha suavemente
+                    data[i] = data[i]*alphaFactor;
                 }
                 coverCtx.putImageData(imgData,0,0);
                 requestAnimationFrame(fade);
             }
             requestAnimationFrame(fade);
         }
-
     </script>
 </body>
 </html>
-
-
-
