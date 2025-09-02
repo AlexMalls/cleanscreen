@@ -1,313 +1,290 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<meta charset="UTF-8" />
-<title>Raspadinha</title>
-<style>
-:root {
-    --w: 800px;
-    --h: 500px;
-}
-* { box-sizing: border-box; }
-body {
-    margin: 0;
-    background: #333;
-    height: 100vh;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-family: Arial, sans-serif;
-}
-#stage {
-    position: relative;
-    width: var(--w);
-    height: var(--h);
-    box-shadow: 0 0 15px rgba(0,0,0,0.6);
-    border-radius: 12px;
-    overflow: hidden;
-    background: #111;
-}
-#bgCanvas, #coverCanvas {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    image-rendering: auto;
-}
-.flash {
-    position: fixed;
-    inset: 0;
-    background: white;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity .5s ease-out;
-}
-.flash.active { opacity: .6; }
-
-/* Sidebar flutuante */
-#sidebar {
-    position: fixed;
-    top: 16px;
-    right: 16px;
-    width: 260px;
-    background: rgba(0,0,0,0.85);
-    color: #fff;
-    font-size: 14px;
-    padding: 16px;
-    line-height: 1.3;
-    box-shadow: 0 0 10px rgba(0,0,0,0.5);
-    border-radius: 8px;
-    overflow: hidden;
-    transition: width 0.3s ease;
-    z-index: 10;
-}
-#sidebar.collapsed {
-    width: 40px; /* só a setinha aparece */
-    padding: 8px;
-}
-#sidebar h3,
-#sidebar p,
-#sidebar hr {
-    transition: opacity 0.3s ease;
-}
-#sidebar.collapsed h3,
-#sidebar.collapsed p,
-#sidebar.collapsed hr {
-    opacity: 0;
-    pointer-events: none;
-}
-#toggleBtn {
-    position: absolute;
-    top: 50%;
-    left: -20px;
-    transform: translateY(-50%);
-    width: 20px;
-    height: 20px;
-    background: #222;
-    color: #fff;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    border-radius: 4px;
-    font-weight: bold;
-    user-select: none;
-    z-index: 11;
-}
-#status { font-size: 12px; color: #aaa; }
-</style>
+    <meta charset="UTF-8" />
+    <title>Raspadinha</title>
+    <style>
+        :root {
+            --w: 800px;
+            --h: 500px;
+        }
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            margin: 0;
+            background: #333;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: Arial, sans-serif;
+        }
+        #stage {
+            position: relative;
+            width: var(--w);
+            height: var(--h);
+            box-shadow: 0 0 15px rgba(0,0,0,0.6);
+            border-radius: 12px;
+            overflow: hidden;
+            background: #111; /* visível enquanto imagem não carrega */
+        }
+        #bgCanvas, #coverCanvas {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            image-rendering: auto;
+        }
+        .flash {
+            position: fixed;
+            inset: 0;
+            background: white;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity .5s ease-out;
+        }
+        .flash.active {
+            opacity: .6;
+        }
+        #sidebar {
+            position: fixed;
+            right: 0;
+            top: 0;
+            width: 260px;
+            height: 100%;
+            background: rgba(0,0,0,.85);
+            color: #fff;
+            font-size: 14px;
+            padding: 16px;
+            line-height: 1.3;
+            box-shadow: -3px 0 5px rgba(0,0,0,0.5);
+        }
+        #sidebar h3 {
+            margin: 0 0 8px;
+            font-size: 16px;
+            border-bottom: 1px solid #555;
+            padding-bottom: 6px;
+        }
+        #sidebar p {
+            margin: 8px 0;
+            word-break: break-all;
+        }
+        #status {
+            font-size: 12px;
+            color: #aaa;
+        }
+    </style>
 </head>
 <body>
-<div id="stage">
-    <canvas id="bgCanvas" width="800" height="500"></canvas>
-    <canvas id="coverCanvas" width="800" height="500"></canvas>
-</div>
+    <div id="stage">
+        <canvas id="bgCanvas" width="800" height="500"></canvas>
+        <canvas id="coverCanvas" width="800" height="500"></canvas>
+    </div>
+    <div id="sidebar">
+        <h3>Configuração (debug)</h3>
+        <p><b>Imagem:</b> <span id="imgPath"></span></p>
+        <p><b>Som:</b> <span id="soundPath"></span></p>
+        <p><b>Raio:</b> <span id="radiusVal"></span></p>
+        <p><b>Força:</b> <span id="strengthVal"></span></p>
+        <p><b>Meta (%):</b> <span id="thresholdVal"></span></p>
+        <hr>
+        <p><b>Revelado (%):</b> <span id="progressVal">0</span></p>
+        <p id="status"></p>
+    </div>
+    <div class="flash" id="flash"></div>
+    <script>
+        // ---------- Defaults caso config.json falhe ----------
+        const defaultConfig = {
+            image: "assets/imagens/premio.gif",
+            fallbackImage: "https://picsum.photos/800/500",
+            sound: "assets/sons/sucesso.mp3",
+            fallbackSound: "https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg",
+            erase: { radius: 40, strength: 0.85 },
+            clearThreshold: 0.8
+        };
 
-<div id="sidebar" class="collapsed">
-    <div id="toggleBtn">▶</div>
-    <h3>Configuração (debug)</h3>
-    <p><b>Imagem:</b> <span id="imgPath"></span></p>
-    <p><b>Som:</b> <span id="soundPath"></span></p>
-    <p><b>Raio:</b> <span id="radiusVal"></span></p>
-    <p><b>Força:</b> <span id="strengthVal"></span></p>
-    <p><b>Meta (%):</b> <span id="thresholdVal"></span></p>
-    <hr>
-    <p><b>Revelado (%):</b> <span id="progressVal">0</span></p>
-    <p id="status"></p>
-</div>
+        // ---------- DOM ----------
+        const bgCanvas = document.getElementById('bgCanvas');
+        const coverCanvas = document.getElementById('coverCanvas');
+        const bgCtx = bgCanvas.getContext('2d');
+        const coverCtx = coverCanvas.getContext('2d', { willReadFrequently: true });
+        const flash = document.getElementById('flash');
+        const imgPathEl = document.getElementById('imgPath');
+        const soundPathEl = document.getElementById('soundPath');
+        const radiusValEl = document.getElementById('radiusVal');
+        const strengthValEl = document.getElementById('strengthVal');
+        const thresholdValEl = document.getElementById('thresholdVal');
+        const progressValEl = document.getElementById('progressVal');
+        const statusEl = document.getElementById('status');
+        const W = bgCanvas.width, H = bgCanvas.height;
+        let config = defaultConfig;
+        let audio = null;
+        let isDrawing = false;
+        let gameEnded = false;
+        let moveTick = 0;
+        let inputEnabled = false; // bloqueio inicial
 
-<div class="flash" id="flash"></div>
+        // ---------- Carregar config ----------
+        (async function init() {
+            try {
+                const res = await fetch('config.json', { cache: 'no-store' });
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const data = await res.json();
+                config = { ...defaultConfig, ...data };
+                statusEl.textContent = "Config carregada de config.json.";
+            } catch (e) {
+                statusEl.textContent = "Falha ao ler config.json. Usando defaults.";
+                console.warn('Erro ao carregar config.json:', e);
+            }
+            start();
+        })();
 
-<script>
-// ---------- Defaults caso config.json falhe ----------
-const defaultConfig = {
-    image: "assets/imagens/premio.gif",
-    fallbackImage: "https://picsum.photos/800/500",
-    sound: "assets/sons/sucesso.mp3",
-    fallbackSound: "https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg",
-    erase: { radius: 40, strength: 0.85 },
-    clearThreshold: 0.8
-};
+        function start() {
+            // Sidebar
+            imgPathEl.textContent = config.image;
+            soundPathEl.textContent = config.sound;
+            radiusValEl.textContent = config.erase.radius;
+            strengthValEl.textContent = config.erase.strength;
+            thresholdValEl.textContent = (config.clearThreshold * 100) + "%";
 
-// ---------- DOM ----------
-const bgCanvas = document.getElementById('bgCanvas');
-const coverCanvas = document.getElementById('coverCanvas');
-const bgCtx = bgCanvas.getContext('2d');
-const coverCtx = coverCanvas.getContext('2d', { willReadFrequently: true });
-const flash = document.getElementById('flash');
-const imgPathEl = document.getElementById('imgPath');
-const soundPathEl = document.getElementById('soundPath');
-const radiusValEl = document.getElementById('radiusVal');
-const strengthValEl = document.getElementById('strengthVal');
-const thresholdValEl = document.getElementById('thresholdVal');
-const progressValEl = document.getElementById('progressVal');
-const statusEl = document.getElementById('status');
-const W = bgCanvas.width, H = bgCanvas.height;
+            // BG Image
+            const img = new Image();
+            img.crossOrigin = "anonymous"; // evita taint
+            img.onload = () => {
+                // fundo consistente
+                bgCtx.fillStyle = "#111";
+                bgCtx.fillRect(0, 0, W, H);
 
-let config = defaultConfig;
-let audio = null;
-let isDrawing = false;
-let gameEnded = false;
-let moveTick = 0;
-let inputEnabled = false;
+                bgCtx.drawImage(img, 0, 0, W, H);
 
-// ---------- Carregar config ----------
-(async function init() {
-    try {
-        const res = await fetch('config.json', { cache: 'no-store' });
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        const data = await res.json();
-        config = { ...defaultConfig, ...data };
-        statusEl.textContent = "Config carregada de config.json.";
-    } catch (e) {
-        statusEl.textContent = "Falha ao ler config.json. Usando defaults.";
-        console.warn('Erro ao carregar config.json:', e);
-    }
-    start();
-})();
+                coverCtx.globalCompositeOperation = 'source-over';
+                coverCtx.fillStyle = 'rgba(0,0,0,1)';
+                coverCtx.fillRect(0, 0, W, H);
 
-function start() {
-    // Sidebar
-    imgPathEl.textContent = config.image;
-    soundPathEl.textContent = config.sound;
-    radiusValEl.textContent = config.erase.radius;
-    strengthValEl.textContent = config.erase.strength;
-    thresholdValEl.textContent = (config.clearThreshold * 100) + "%";
+                // Libera input automaticamente após 6 segundos
+                setTimeout(() => {
+                    inputEnabled = true;
+                }, 6000);
+            };
+            img.onerror = () => {
+                statusEl.textContent = "Imagem principal indisponível. Usando fallback.";
+                img.src = config.fallbackImage;
+            };
+            img.src = config.image;
 
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.onload = () => {
-        bgCtx.fillStyle = "#111";
-        bgCtx.fillRect(0, 0, W, H);
+            // Som
+            audio = new Audio(config.sound);
+            audio.onerror = () => {
+                statusEl.textContent += " • Som indisponível. Usando beep interno.";
+                audio = null; // forçar beep WebAudio
+            };
 
-        bgCtx.drawImage(img, 0, 0, W, H);
+            // Eventos
+            bindInput();
+        }
 
-        coverCtx.globalCompositeOperation = 'source-over';
-        coverCtx.fillStyle = 'rgba(0,0,0,1)';
-        coverCtx.fillRect(0, 0, W, H);
+        function getPos(e) {
+            const rect = coverCanvas.getBoundingClientRect();
+            if (e.touches && e.touches.length) {
+                return { x: e.touches[0].clientX - rect.left, y: e.touches[0].clientY - rect.top };
+            }
+            return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+        }
 
-        // Input liberado automaticamente após 6s
-        setTimeout(() => { inputEnabled = true; }, 6000);
-    };
-    img.onerror = () => {
-        statusEl.textContent = "Imagem principal indisponível. Usando fallback.";
-        img.src = config.fallbackImage;
-    };
-    img.src = config.image;
+        function scratch(x, y) {
+            coverCtx.globalCompositeOperation = "destination-out";
+            const r = config.erase.radius;
+            const g = coverCtx.createRadialGradient(x, y, 0, x, y, r);
+            const s = Math.max(0.05, Math.min(1, config.erase.strength));
+            g.addColorStop(0, `rgba(0,0,0,${s})`);
+            g.addColorStop(1, 'rgba(0,0,0,0)');
+            coverCtx.fillStyle = g;
+            coverCtx.beginPath();
+            coverCtx.arc(x, y, r, 0, Math.PI*2);
+            coverCtx.fill();
+            coverCtx.globalCompositeOperation = "source-over";
+        }
 
-    // Som
-    audio = new Audio(config.sound);
-    audio.onerror = () => {
-        statusEl.textContent += " • Som indisponível. Usando beep interno.";
-        audio = null;
-    };
+        function bindInput() {
+            // mouse
+            coverCanvas.addEventListener('mousedown', e => {
+                if (!inputEnabled) return;
+                isDrawing = true;
+                const p = getPos(e);
+                scratch(p.x, p.y);
+            });
+            window.addEventListener('mouseup', () => isDrawing = false);
+            coverCanvas.addEventListener('mousemove', e => {
+                if (!isDrawing || !inputEnabled) return;
+                const p = getPos(e);
+                scratch(p.x, p.y);
+                if ((++moveTick % 3) === 0) checkCleared();
+            });
 
-    bindInput();
-}
+            // touch
+            coverCanvas.addEventListener('touchstart', e => {
+                if (!inputEnabled) return;
+                isDrawing = true;
+                const p = getPos(e);
+                scratch(p.x, p.y);
+            }, { passive:true });
+            coverCanvas.addEventListener('touchend', () => isDrawing = false, {passive:true});
+            coverCanvas.addEventListener('touchmove', e => {
+                if (!isDrawing || !inputEnabled) return;
+                e.preventDefault();
+                const p = getPos(e);
+                scratch(p.x, p.y);
+                if ((++moveTick % 3) === 0) checkCleared();
+            }, { passive:false });
+        }
 
-// ---------- Funções do scratch ----------
-function getPos(e) {
-    const rect = coverCanvas.getBoundingClientRect();
-    if (e.touches && e.touches.length) {
-        return { x: e.touches[0].clientX - rect.left, y: e.touches[0].clientY - rect.top };
-    }
-    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
-}
+        function checkCleared() {
+            const data = coverCtx.getImageData(0, 0, W, H).data;
+            let total = data.length / 4;
+            let cleared = 0;
+            for (let i = 3; i < data.length; i += 4) {
+                if (data[i] === 0) cleared++;
+            }
+            const percent = cleared / total;
+            progressValEl.textContent = (percent * 100).toFixed(1) + "%";
+            if (!gameEnded && percent >= config.clearThreshold) {
+                gameEnded = true;
+                triggerWin();
+            }
+        }
 
-function scratch(x, y) {
-    coverCtx.globalCompositeOperation = "destination-out";
-    const r = config.erase.radius;
-    const g = coverCtx.createRadialGradient(x, y, 0, x, y, r);
-    const s = Math.max(0.05, Math.min(1, config.erase.strength));
-    g.addColorStop(0, `rgba(0,0,0,${s})`);
-    g.addColorStop(1, 'rgba(0,0,0,0)');
-    coverCtx.fillStyle = g;
-    coverCtx.beginPath();
-    coverCtx.arc(x, y, r, 0, Math.PI*2);
-    coverCtx.fill();
-    coverCtx.globalCompositeOperation = "source-over";
-}
+        function triggerWin() {
+            playSuccess();
+            flash.classList.add('active');
+            setTimeout(() => flash.classList.remove('active'), 500);
+        }
 
-function bindInput() {
-    coverCanvas.addEventListener('mousedown', e => {
-        if (!inputEnabled) return;
-        isDrawing = true;
-        const p = getPos(e);
-        scratch(p.x, p.y);
-    });
-    window.addEventListener('mouseup', () => isDrawing = false);
-    coverCanvas.addEventListener('mousemove', e => {
-        if (!isDrawing || !inputEnabled) return;
-        const p = getPos(e);
-        scratch(p.x, p.y);
-        if ((++moveTick % 3) === 0) checkCleared();
-    });
+        function playSuccess() {
+            if (audio) {
+                audio.currentTime = 0;
+                audio.play().catch(beep);
+            } else {
+                beep();
+            }
+        }
 
-    coverCanvas.addEventListener('touchstart', e => {
-        if (!inputEnabled) return;
-        isDrawing = true;
-        const p = getPos(e);
-        scratch(p.x, p.y);
-    }, { passive:true });
-    coverCanvas.addEventListener('touchend', () => isDrawing = false, {passive:true});
-    coverCanvas.addEventListener('touchmove', e => {
-        if (!isDrawing || !inputEnabled) return;
-        e.preventDefault();
-        const p = getPos(e);
-        scratch(p.x, p.y);
-        if ((++moveTick % 3) === 0) checkCleared();
-    }, { passive:false });
-}
-
-function checkCleared() {
-    const data = coverCtx.getImageData(0, 0, W, H).data;
-    let total = data.length / 4;
-    let cleared = 0;
-    for (let i = 3; i < data.length; i += 4) if(data[i] === 0) cleared++;
-    const percent = cleared / total;
-    progressValEl.textContent = (percent*100).toFixed(1) + "%";
-    if (!gameEnded && percent >= config.clearThreshold) {
-        gameEnded = true;
-        triggerWin();
-    }
-}
-
-function triggerWin() {
-    playSuccess();
-    flash.classList.add('active');
-    setTimeout(() => flash.classList.remove('active'), 500);
-}
-
-function playSuccess() {
-    if (audio) { audio.currentTime = 0; audio.play().catch(beep); } 
-    else { beep(); }
-}
-
-function beep() {
-    try {
-        const Actx = window.AudioContext || window.webkitAudioContext;
-        const ac = new Actx();
-        const o = ac.createOscillator();
-        const g = ac.createGain();
-        o.type = 'sine';
-        o.frequency.value = 880;
-        g.gain.setValueAtTime(0, ac.currentTime);
-        g.gain.linearRampToValueAtTime(0.2, ac.currentTime + 0.01);
-        g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + 0.35);
-        o.connect(g).connect(ac.destination);
-        o.start();
-        o.stop(ac.currentTime + 0.36);
-    } catch(e) {}
-}
-
-// ---------- Toggle sidebar ----------
-const sidebar = document.getElementById('sidebar');
-const toggleBtn = document.getElementById('toggleBtn');
-
-toggleBtn.addEventListener('click', () => {
-    sidebar.classList.toggle('collapsed');
-    toggleBtn.textContent = sidebar.classList.contains('collapsed') ? '▶' : '◀';
-});
-</script>
+        function beep() {
+            try {
+                const Actx = window.AudioContext || window.webkitAudioContext;
+                const ac = new Actx();
+                const o = ac.createOscillator();
+                const g = ac.createGain();
+                o.type = 'sine';
+                o.frequency.value = 880;
+                g.gain.setValueAtTime(0, ac.currentTime);
+                g.gain.linearRampToValueAtTime(0.2, ac.currentTime + 0.01);
+                g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + 0.35);
+                o.connect(g).connect(ac.destination);
+                o.start();
+                o.stop(ac.currentTime + 0.36);
+            } catch(e){ /* silencioso */ }
+        }
+    </script>
 </body>
 </html>
