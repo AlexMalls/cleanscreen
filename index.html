@@ -290,7 +290,7 @@
                 }
                 inputEnabled=false;
                 triggerWin();
-                autoClear();
+                autoClearSmooth();
             }
         }
 
@@ -303,15 +303,28 @@
         function playSuccess() { if(audio){ audio.currentTime=0; audio.play().catch(beep);} else beep();}
         function beep(){ try{ const Actx=window.AudioContext||window.webkitAudioContext; const ac=new Actx(); const o=ac.createOscillator(); const g=ac.createGain(); o.type='sine'; o.frequency.value=880; g.gain.setValueAtTime(0,ac.currentTime); g.gain.linearRampToValueAtTime(0.2,ac.currentTime+0.01); g.gain.exponentialRampToValueAtTime(0.0001,ac.currentTime+0.35); o.connect(g).connect(ac.destination); o.start(); o.stop(ac.currentTime+0.36); }catch(e){} }
 
-        function autoClear(){
-            let alpha=255; const step=5;
-            const interval=setInterval(()=>{
-                coverCtx.fillStyle=`rgba(0,0,0,${alpha/255})`;
-                coverCtx.fillRect(0,0,W,H);
-                alpha-=step;
-                if(alpha<=0){ clearInterval(interval); coverCtx.clearRect(0,0,W,H);}
-            },30);
+        function autoClearSmooth() {
+            const imgData = coverCtx.getImageData(0,0,W,H);
+            const data = imgData.data;
+            let alphaFactor = 1; // começa com alpha total
+            const step = 0.02; // quanto reduzir por frame (0.02 = 2% por frame)
+            
+            function fade() {
+                alphaFactor -= step;
+                if(alphaFactor <= 0){
+                    coverCtx.clearRect(0,0,W,H);
+                    return;
+                }
+                for(let i=3;i<data.length;i+=4){
+                    data[i] = data[i]*alphaFactor; // reduz alpha suavemente
+                }
+                coverCtx.putImageData(imgData,0,0);
+                requestAnimationFrame(fade);
+            }
+            requestAnimationFrame(fade);
         }
+
     </script>
 </body>
 </html>
+
