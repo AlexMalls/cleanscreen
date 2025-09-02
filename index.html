@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Raspadinha</title>
+  <style>
+    body {
+      margin: 0;
+      background: #333;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      overflow: hidden;
+      font-family: Arial, sans-serif;
+    }
+    #container {
+      position: relative;
+    }
+    canvas {
+      display: block;
+      cursor: crosshair;
+      box-shadow: 0 0 15px rgba(0,0,0,0.6);
+      border-radius: 12px;
+    }
+    .flash {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: white;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.5s ease-out;
+    }
+    .flash.active {
+      opacity: 0.6;
+    }
+    #sidebar {
+      position: fixed;
+      right: 0;
+      top: 0;
+      width: 250px;
+      height: 100%;
+      background: rgba(0,0,0,0.8);
+      color: #fff;
+      font-size: 14px;
+      padding: 15px;
+      box-shadow: -3px 0 5px rgba(0,0,0,0.5);
+    }
+    #sidebar h3 {
+      margin-top: 0;
+      font-size: 16px;
+      border-bottom: 1px solid #666;
+      padding-bottom: 5px;
+    }
+    #sidebar p {
+      margin: 8px 0;
+    }
+  </style>
+</head>
+<body>
+  <div id="container">
+    <canvas id="scratch"></canvas>
+  </div>
+  <div id="sidebar">
+    <h3>Configuração</h3>
+    <p><b>Imagem:</b> <span id="imgPath"></span></p>
+    <p><b>Som:</b> <span id="soundPath"></span></p>
+    <p><b>Raio:</b> <span id="radiusVal"></span></p>
+    <p><b>Força:</b> <span id="strengthVal"></span></p>
+    <p><b>Meta (%):</b> <span id="thresholdVal"></span></p>
+    <hr>
+    <p><b>Revelado (%):</b> <span id="progressVal">0</span></p>
+  </div>
+  <div class="flash" id="flash"></div>
+
+  <script>
+    const canvas = document.getElementById("scratch");
+    const ctx = canvas.getContext("2d");
+    const flash = document.getElementById("flash");
+
+    const width = 800;
+    const height = 500;
+    canvas.width = width;
+    canvas.height = height;
+
+    // Canvas auxiliar para imagem de fundo
+    const backBuffer = document.createElement("canvas");
+    backBuffer.width = width;
+    backBuffer.height = height;
+    const backCtx = backBuffer.getContext("2d");
+
+    // Sidebar
+    const imgPathEl = document.getElementById("imgPath");
+    const soundPathEl = document.getElementById("soundPath");
+    const radiusValEl = document.getElementById("radiusVal");
+    const strengthValEl = document.getElementById("strengthVal");
+    const thresholdValEl = document.getElementById("thresholdVal");
+    const progressValEl = document.getElementById("progressVal");
+
+    let config = null;
+    let bg = new Image();
+    let audio = null;
+    let isDrawing = false;
+    let gameEnded = false;
+
+    // Carregar config.json
+    fetch("config.json")
+      .then(res => res.json())
+      .then(data => {
+        config = data;
+        setupGame();
+      })
+      .catch(err => console.error("Erro ao carregar config.json", err));
+
+    function setupGame() {
+      // Sidebar
+      imgPathEl.textContent = config.image;
+      soundPathEl.textContent = config.sound;
+      radiusValEl.textContent = config.erase.radius;
+      strengthValEl.textContent = config.erase.strength;
+      thresholdValEl.textContent = (config.clearThreshold * 100) + "%";
+
+      // Imagem
+      bg.src = config.image;
+      bg.onerror = () => { bg.src = config.fallbackImage; };
+
+      // Som
+      audio = new Audio(config.sound);
+      audio.onerror = () => { audio.src = config.fallbackSound; };
+
+      bg.onload = () => {
+        // Desenha imagem no backBuffer
+        backCtx.drawImage(bg, 0, 0, width, height);
+
+        // Preenche o canvas principal com preto opaco (a "raspadinha")
+        ctx.fillStyle = "rgba(0,0,0,1)";
+        ctx.fillRect(0, 0, width, height);
+      };
+    }
+
+    function getPos(e) {
+      const rect = canvas.getBoundingClientRect();
+      if (e.touches) {
+        return {
+          x: e.touches[0].clientX - rect.left,
+          y: e.touches[0].clientY - rect.top
+        };
+      }
+      return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    }
+
+    function scratch(x, y) {
+      ctx.globalCompositeOperation = "destination-out";
+      const grad = ctx.createRadialGradient(x, y, 0, x, y, config.erase.radius);
+      grad.addColorStop(0, `rgba(0,0,0,${config.erase.strength})`);
+      grad.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(x, y, config.erase.radius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalCompositeOperation = "source-over";
+    }
+
+    function checkCleared() {
+      const pixels = ctx.getImageData(0, 0, width, height).data;
+      let total = pixels.length / 4;
+      let cleared = 0;
+      for (let i = 3; i < pixels.length; i += 4) {
+        if (pixels[i] === 0) cleared++;
+      }
+      let percent = cleared / total;
+      progressValEl.textContent = (percent * 100).toFixed(1) + "%";
+
+      if (percent >= config.clearThreshold && !gameEnded) {
+        gameEnded = true;
+        triggerWin();
+      }
+    }
+
+    function triggerWin() {
+      audio.play();
+      flash.classList.add("active");
+      setTimeout(() => flash.classList.remove("active"), 500);
+    }
+
+    // Mouse
+    canvas.addEventListener("mousedown", (e) => {
+      isDrawing = true;
+      const pos = getPos(e);
+      scratch(pos.x, pos.y);
+    });
+    canvas.addEventListener("mousemove", (e) => {
+      if (!isDrawing) return;
+      const pos = getPos(e);
+      scratch(pos.x, pos.y);
+      checkCleared();
+    });
+    canvas.addEventListener("mouseup", () => isDrawing = false);
+    canvas.addEventListener("mouseleave", () => isDrawing = false);
+
+    // Touch
+    canvas.addEventListener("touchstart", (e) => {
+      isDrawing = true;
+      const pos = getPos(e);
+      scratch(pos.x, pos.y);
+    });
+    canvas.addEventListener("touchmove", (e) => {
+      if (!isDrawing) return;
+      e.preventDefault();
+      const pos = getPos(e);
+      scratch(pos.x, pos.y);
+      checkCleared();
+    }, { passive: false });
+    canvas.addEventListener("touchend", () => isDrawing = false);
+  </script>
+</body>
+</html>
