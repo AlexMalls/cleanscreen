@@ -90,16 +90,17 @@
     let lastCheck = 0;
     let gameReady = false; // controla se pode interagir
 
-    // Preload config e assets
+    // Preload config e assets com fallback
     async function preload() {
-      // Config JSON (se não existir, usa defaults)
       try {
         const res = await fetch("config.json");
         config = await res.json();
       } catch {
         config = {
           assetsPath: "assets/imagens/bg.png",
+          fallbackImage: "https://picsum.photos/800/500",
           audioPath: "assets/sons/win.mp3",
+          fallbackAudio: "https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg",
           eraseIntensity: 40,
           clearThreshold: 80
         };
@@ -110,17 +111,25 @@
       document.getElementById("goal").textContent = config.clearThreshold;
       document.getElementById("assetPath").textContent = config.assetsPath;
 
-      // Preload imagem
+      // Preload imagem com fallback
       bgImage = new Image();
       const imgLoaded = new Promise((resolve) => {
         bgImage.onload = resolve;
-        bgImage.onerror = resolve; // fallback
+        bgImage.onerror = () => {
+          console.warn("Imagem principal indisponível. Usando fallback.");
+          bgImage.src = config.fallbackImage;
+          bgImage.onload = resolve;
+          bgImage.onerror = resolve; // garante que sempre resolve
+        };
       });
       bgImage.src = config.assetsPath;
 
-      // Preload áudio
+      // Preload áudio com fallback
       audio = new Audio(config.audioPath);
-      audio.onerror = () => { audio = new Audio(); };
+      audio.onerror = () => {
+        console.warn("Áudio principal indisponível. Usando fallback.");
+        audio = new Audio(config.fallbackAudio);
+      };
 
       await imgLoaded;
 
@@ -167,7 +176,7 @@
     }
 
     function triggerWin() {
-      audio.play();
+      if(audio) audio.play();
       flash.classList.add("active");
       setTimeout(() => flash.classList.remove("active"), 500);
     }
@@ -216,9 +225,9 @@
     }, { passive: false });
     canvas.addEventListener("touchend", () => isDrawing = false);
 
-    // Sequência: preload + intro
+    // Sequência: preload + fade
     (async () => {
-      await preload();
+      preload(); // roda em paralelo
       setTimeout(() => {
         intro.classList.add("fade-out");
       }, 6000);
