@@ -49,7 +49,7 @@
             opacity: .6;
         }
         #sidebar {
-            position: absolute; /* canto superior direito */
+            position: absolute;
             top: 16px;
             right: 16px;
             width: auto;
@@ -99,6 +99,19 @@
             opacity: 1;
             pointer-events: auto;
         }
+
+        /* Cronômetro */
+        #timer {
+            position: absolute;
+            top: 8px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 24px;
+            color: #fff;
+            font-weight: bold;
+            display: none;
+            z-index: 10;
+        }
     </style>
 </head>
 <body>
@@ -109,6 +122,9 @@
 
     <!-- Botão fora do canvas -->
     <button id="startBtn">Começar a Raspadinha</button>
+
+    <!-- Cronômetro -->
+    <div id="timer"></div>
 
     <div id="sidebar">
         <h3>Configuração (debug)</h3>
@@ -145,6 +161,7 @@
         const progressValEl = document.getElementById('progressVal');
         const statusEl = document.getElementById('status');
         const startBtn = document.getElementById('startBtn');
+        const timerEl = document.getElementById('timer');
         const W = bgCanvas.width, H = bgCanvas.height;
         let config = defaultConfig;
         let audio = null;
@@ -185,7 +202,6 @@
                 coverCtx.fillStyle = 'rgba(0,0,0,1)';
                 coverCtx.fillRect(0, 0, W, H);
 
-                // Após 1 segundo, inicia fade-in do botão
                 setTimeout(() => {
                     startBtn.classList.add('show');
                 }, 1000);
@@ -205,11 +221,43 @@
             bindInput();
         }
 
-        // Clique libera a raspadinha
+        // Clique libera a raspadinha e inicia cronômetro
         startBtn.addEventListener('click', () => {
-            inputEnabled = true;
             startBtn.style.display = 'none';
+            inputEnabled = true;
+            startTimer(6); // 6 segundos
         });
+
+        function startTimer(seconds) {
+            let remaining = seconds;
+            timerEl.textContent = remaining;
+            timerEl.style.display = 'block';
+
+            const interval = setInterval(() => {
+                remaining--;
+                timerEl.textContent = remaining;
+                if (remaining <= 0) {
+                    clearInterval(interval);
+                    timerEl.style.display = 'none';
+                    inputEnabled = false;
+                    playEndSound();
+                    // reaparece botão com fade-in
+                    setTimeout(() => {
+                        startBtn.style.display = 'block';
+                        setTimeout(() => startBtn.classList.add('show'), 50);
+                    }, 500);
+                }
+            }, 1000);
+        }
+
+        function playEndSound() {
+            const endAudio = new Audio("assets/sons/final.mp3");
+            endAudio.onerror = () => {
+                const fallback = new Audio("https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg");
+                fallback.play().catch(()=>{});
+            };
+            endAudio.play().catch(()=>{});
+        }
 
         function getPos(e) {
             const rect = coverCanvas.getBoundingClientRect();
@@ -264,7 +312,7 @@
             const data = coverCtx.getImageData(0, 0, W, H).data;
             let total = data.length / 4;
             let cleared = 0;
-            const thresholdAlpha = 80; // pixels quase transparentes contam como revelados
+            const thresholdAlpha = 80;
             for (let i = 3; i < data.length; i += 4) {
                 if (data[i] <= thresholdAlpha) cleared++;
             }
@@ -310,9 +358,3 @@
     </script>
 </body>
 </html>
-
-
-
-
-
-
