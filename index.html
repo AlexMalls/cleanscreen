@@ -72,7 +72,6 @@
         #sidebar p { margin: 8px 0; word-break: break-all; }
         #status { font-size: 12px; color: #aaa; }
 
-        /* Botão de início fora do canvas */
         #startBtn {
             position: absolute;
             top: calc(50% - 300px - 40px);
@@ -92,7 +91,6 @@
         }
         #startBtn.show { opacity: 1; pointer-events: auto; }
 
-        /* Cronômetro */
         #timer {
             position: absolute;
             top: 8px;
@@ -110,10 +108,7 @@
 </head>
 <body>
     <div id="stage">
-        <!-- Agora o GIF fica aqui -->
         <img id="bgImage" src="assets/imagens/premio.gif" alt="Premio">
-
-        <!-- Camada de raspadinha -->
         <canvas id="coverCanvas" width="800" height="500"></canvas>
     </div>
 
@@ -136,7 +131,7 @@
 
     <script>
         const defaultConfig = {
-            image: "assets/imagens/premio.gif",
+            images: ["assets/imagens/premio.gif"],
             fallbackImage: "https://picsum.photos/800/500",
             sound: "assets/sons/sucesso.mp3",
             fallbackSound: "https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg",
@@ -181,13 +176,17 @@
         })();
 
         function start() {
+            // se existir lista "images", escolhe uma aleatória
+            const images = config.images || (config.image ? [config.image] : []);
+            const chosenImage = images.length > 0 ? images[Math.floor(Math.random() * images.length)] : defaultConfig.images[0];
+            config.image = chosenImage;
+
             imgPathEl.textContent = config.image;
             soundPathEl.textContent = config.sound;
             radiusValEl.textContent = config.erase.radius;
             strengthValEl.textContent = config.erase.strength;
             thresholdValEl.textContent = (config.clearThreshold * 100) + "%";
 
-            // Aplica imagem de fundo (gif continua animando normalmente)
             bgImage.src = config.image;
             bgImage.onerror = () => {
                 statusEl.textContent = "Imagem principal indisponível. Usando fallback.";
@@ -205,11 +204,10 @@
             bindInput();
         }
 
-        // clique no botão inicia raspadinha
         startBtn.addEventListener('click', () => {
             startBtn.style.display = 'none';
             inputEnabled = true;
-            startTimer(6); // 6s
+            startTimer(6);
         });
 
         function startTimer(seconds) {
@@ -262,7 +260,6 @@
             coverCtx.globalCompositeOperation = "source-over";
         }
 
-        // Bind multi-touch e mouse simultâneo
         function bindInput() {
             coverCanvas.addEventListener('mousedown', e => {
                 if(!inputEnabled) return;
