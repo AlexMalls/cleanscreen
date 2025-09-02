@@ -8,9 +8,7 @@
             --w: 800px;
             --h: 500px;
         }
-        * {
-            box-sizing: border-box;
-        }
+        * { box-sizing: border-box; }
         body {
             margin: 0;
             background: #333;
@@ -45,16 +43,14 @@
             pointer-events: none;
             transition: opacity .5s ease-out;
         }
-        .flash.active {
-            opacity: .6;
-        }
+        .flash.active { opacity: .6; }
         #sidebar {
             position: absolute;
             top: 16px;
             right: 16px;
             width: auto;
             max-width: 300px;
-            background: rgba(0, 0, 0, 0.3);
+            background: rgba(0,0,0,0.3);
             color: #fff;
             font-size: 14px;
             padding: 12px 16px;
@@ -68,19 +64,13 @@
             border-bottom: 1px solid #555;
             padding-bottom: 6px;
         }
-        #sidebar p {
-            margin: 8px 0;
-            word-break: break-all;
-        }
-        #status {
-            font-size: 12px;
-            color: #aaa;
-        }
+        #sidebar p { margin: 8px 0; word-break: break-all; }
+        #status { font-size: 12px; color: #aaa; }
 
         /* Botão de início fora do canvas */
         #startBtn {
             position: absolute;
-            top: calc(50% - 300px - 40px); /* acima do topo do canvas */
+            top: calc(50% - 300px - 40px);
             left: 50%;
             transform: translateX(-50%);
             padding: 10px 20px;
@@ -95,10 +85,7 @@
             transition: opacity 3s ease;
             z-index: 10;
         }
-        #startBtn.show {
-            opacity: 1;
-            pointer-events: auto;
-        }
+        #startBtn.show { opacity: 1; pointer-events: auto; }
 
         /* Cronômetro */
         #timer {
@@ -111,6 +98,8 @@
             font-weight: bold;
             display: none;
             z-index: 10;
+            opacity: 1;
+            transition: opacity 0.5s ease;
         }
     </style>
 </head>
@@ -120,10 +109,7 @@
         <canvas id="coverCanvas" width="800" height="500"></canvas>
     </div>
 
-    <!-- Botão fora do canvas -->
     <button id="startBtn">Começar a Raspadinha</button>
-
-    <!-- Cronômetro -->
     <div id="timer"></div>
 
     <div id="sidebar">
@@ -137,7 +123,9 @@
         <p><b>Revelado (%):</b> <span id="progressVal">0</span></p>
         <p id="status"></p>
     </div>
+
     <div class="flash" id="flash"></div>
+
     <script>
         const defaultConfig = {
             image: "assets/imagens/premio.gif",
@@ -169,6 +157,7 @@
         let gameEnded = false;
         let moveTick = 0;
         let inputEnabled = false;
+        let timerInterval = null;
 
         (async function init() {
             try {
@@ -195,16 +184,14 @@
             img.crossOrigin = "anonymous";
             img.onload = () => {
                 bgCtx.fillStyle = "#111";
-                bgCtx.fillRect(0, 0, W, H);
-                bgCtx.drawImage(img, 0, 0, W, H);
+                bgCtx.fillRect(0,0,W,H);
+                bgCtx.drawImage(img,0,0,W,H);
 
                 coverCtx.globalCompositeOperation = 'source-over';
                 coverCtx.fillStyle = 'rgba(0,0,0,1)';
-                coverCtx.fillRect(0, 0, W, H);
+                coverCtx.fillRect(0,0,W,H);
 
-                setTimeout(() => {
-                    startBtn.classList.add('show');
-                }, 1000);
+                setTimeout(() => startBtn.classList.add('show'), 1000);
             };
             img.onerror = () => {
                 statusEl.textContent = "Imagem principal indisponível. Usando fallback.";
@@ -213,147 +200,117 @@
             img.src = config.image;
 
             audio = new Audio(config.sound);
-            audio.onerror = () => {
-                statusEl.textContent += " • Som indisponível. Usando beep interno.";
-                audio = null;
-            };
-
+            audio.onerror = () => { audio = null; statusEl.textContent += " • Som indisponível."; };
             bindInput();
         }
 
-        // Clique libera a raspadinha e inicia cronômetro
+        // Clique no botão inicia raspadinha + cronômetro
         startBtn.addEventListener('click', () => {
             startBtn.style.display = 'none';
             inputEnabled = true;
-            startTimer(6); // 6 segundos
+            startTimer(6); // 6s
         });
 
         function startTimer(seconds) {
             let remaining = seconds;
             timerEl.textContent = remaining;
             timerEl.style.display = 'block';
+            timerEl.style.opacity = 1;
 
-            const interval = setInterval(() => {
+            timerInterval = setInterval(() => {
                 remaining--;
                 timerEl.textContent = remaining;
                 if (remaining <= 0) {
-                    clearInterval(interval);
-                    timerEl.style.display = 'none';
+                    clearInterval(timerInterval);
+                    timerInterval = null;
+                    timerEl.style.opacity = 0;
+                    setTimeout(() => timerEl.style.display='none',500);
                     inputEnabled = false;
                     playEndSound();
-                    // reaparece botão com fade-in
-                    setTimeout(() => {
-                        startBtn.style.display = 'block';
-                        setTimeout(() => startBtn.classList.add('show'), 50);
-                    }, 500);
+                    setTimeout(()=>{ startBtn.style.display='block'; setTimeout(()=>startBtn.classList.add('show'),50); },500);
                 }
-            }, 1000);
+            },1000);
         }
 
         function playEndSound() {
             const endAudio = new Audio("assets/sons/final.mp3");
-            endAudio.onerror = () => {
-                const fallback = new Audio("https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg");
-                fallback.play().catch(()=>{});
+            endAudio.onerror = () => { 
+                const fallback = new Audio("https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg"); 
+                fallback.play().catch(()=>{}); 
             };
             endAudio.play().catch(()=>{});
         }
 
         function getPos(e) {
             const rect = coverCanvas.getBoundingClientRect();
-            if (e.touches && e.touches.length) {
-                return { x: e.touches[0].clientX - rect.left, y: e.touches[0].clientY - rect.top };
-            }
-            return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+            if(e.touches && e.touches.length) return {x:e.touches[0].clientX - rect.left, y:e.touches[0].clientY - rect.top};
+            return {x:e.clientX - rect.left, y:e.clientY - rect.top};
         }
 
-        function scratch(x, y) {
+        function scratch(x,y) {
             coverCtx.globalCompositeOperation = "destination-out";
             const r = config.erase.radius;
-            const g = coverCtx.createRadialGradient(x, y, 0, x, y, r);
-            const s = Math.max(0.05, Math.min(1, config.erase.strength));
-            g.addColorStop(0, `rgba(0,0,0,${s})`);
-            g.addColorStop(1, 'rgba(0,0,0,0)');
+            const g = coverCtx.createRadialGradient(x,y,0,x,y,r);
+            const s = Math.max(0.05,Math.min(1,config.erase.strength));
+            g.addColorStop(0,`rgba(0,0,0,${s})`);
+            g.addColorStop(1,'rgba(0,0,0,0)');
             coverCtx.fillStyle = g;
             coverCtx.beginPath();
-            coverCtx.arc(x, y, r, 0, Math.PI*2);
+            coverCtx.arc(x,y,r,0,Math.PI*2);
             coverCtx.fill();
             coverCtx.globalCompositeOperation = "source-over";
         }
 
         function bindInput() {
-            coverCanvas.addEventListener('mousedown', e => {
-                if (!inputEnabled) return;
-                isDrawing = true;
-                scratch(getPos(e).x, getPos(e).y);
-            });
-            window.addEventListener('mouseup', () => isDrawing = false);
-            coverCanvas.addEventListener('mousemove', e => {
-                if (!isDrawing || !inputEnabled) return;
-                scratch(getPos(e).x, getPos(e).y);
-                if ((++moveTick % 3) === 0) checkCleared();
-            });
-
-            coverCanvas.addEventListener('touchstart', e => {
-                if (!inputEnabled) return;
-                isDrawing = true;
-                scratch(getPos(e).x, getPos(e).y);
-            }, { passive:true });
-            coverCanvas.addEventListener('touchend', () => isDrawing = false, {passive:true});
-            coverCanvas.addEventListener('touchmove', e => {
-                if (!isDrawing || !inputEnabled) return;
-                e.preventDefault();
-                scratch(getPos(e).x, getPos(e).y);
-                if ((++moveTick % 3) === 0) checkCleared();
-            }, { passive:false });
+            coverCanvas.addEventListener('mousedown', e => { if(!inputEnabled) return; isDrawing=true; scratch(getPos(e).x,getPos(e).y); });
+            window.addEventListener('mouseup', ()=>isDrawing=false);
+            coverCanvas.addEventListener('mousemove', e => { if(!isDrawing||!inputEnabled) return; scratch(getPos(e).x,getPos(e).y); if((++moveTick%3)===0) checkCleared(); });
+            coverCanvas.addEventListener('touchstart', e=>{ if(!inputEnabled) return; isDrawing=true; scratch(getPos(e).x,getPos(e).y); },{passive:true});
+            coverCanvas.addEventListener('touchend', ()=>isDrawing=false,{passive:true});
+            coverCanvas.addEventListener('touchmove', e=>{ if(!isDrawing||!inputEnabled) return; e.preventDefault(); scratch(getPos(e).x,getPos(e).y); if((++moveTick%3)===0) checkCleared();},{passive:false});
         }
 
         function checkCleared() {
-            const data = coverCtx.getImageData(0, 0, W, H).data;
-            let total = data.length / 4;
-            let cleared = 0;
-            const thresholdAlpha = 80;
-            for (let i = 3; i < data.length; i += 4) {
-                if (data[i] <= thresholdAlpha) cleared++;
-            }
-            const percent = cleared / total;
-            progressValEl.textContent = (percent * 100).toFixed(1) + "%";
-            if (!gameEnded && percent >= config.clearThreshold) {
-                gameEnded = true;
+            const data = coverCtx.getImageData(0,0,W,H).data;
+            let total = data.length/4;
+            let cleared=0;
+            const thresholdAlpha=80;
+            for(let i=3;i<data.length;i+=4) if(data[i]<=thresholdAlpha) cleared++;
+            const percent = cleared/total;
+            progressValEl.textContent = (percent*100).toFixed(1)+"%";
+
+            if(!gameEnded && percent>=config.clearThreshold) {
+                gameEnded=true;
+                // Se cronômetro ativo, pausa e fade-out
+                if(timerInterval){
+                    clearInterval(timerInterval);
+                    timerInterval=null;
+                    timerEl.style.opacity=0;
+                    setTimeout(()=>timerEl.style.display='none',500);
+                }
+                inputEnabled=false;
                 triggerWin();
+                autoClear();
             }
         }
 
         function triggerWin() {
             playSuccess();
             flash.classList.add('active');
-            setTimeout(() => flash.classList.remove('active'), 500);
+            setTimeout(()=>flash.classList.remove('active'),500);
         }
 
-        function playSuccess() {
-            if (audio) {
-                audio.currentTime = 0;
-                audio.play().catch(beep);
-            } else {
-                beep();
-            }
-        }
+        function playSuccess() { if(audio){ audio.currentTime=0; audio.play().catch(beep);} else beep();}
+        function beep(){ try{ const Actx=window.AudioContext||window.webkitAudioContext; const ac=new Actx(); const o=ac.createOscillator(); const g=ac.createGain(); o.type='sine'; o.frequency.value=880; g.gain.setValueAtTime(0,ac.currentTime); g.gain.linearRampToValueAtTime(0.2,ac.currentTime+0.01); g.gain.exponentialRampToValueAtTime(0.0001,ac.currentTime+0.35); o.connect(g).connect(ac.destination); o.start(); o.stop(ac.currentTime+0.36); }catch(e){} }
 
-        function beep() {
-            try {
-                const Actx = window.AudioContext || window.webkitAudioContext;
-                const ac = new Actx();
-                const o = ac.createOscillator();
-                const g = ac.createGain();
-                o.type = 'sine';
-                o.frequency.value = 880;
-                g.gain.setValueAtTime(0, ac.currentTime);
-                g.gain.linearRampToValueAtTime(0.2, ac.currentTime + 0.01);
-                g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + 0.35);
-                o.connect(g).connect(ac.destination);
-                o.start();
-                o.stop(ac.currentTime + 0.36);
-            } catch(e){}
+        function autoClear(){
+            let alpha=255; const step=5;
+            const interval=setInterval(()=>{
+                coverCtx.fillStyle=`rgba(0,0,0,${alpha/255})`;
+                coverCtx.fillRect(0,0,W,H);
+                alpha-=step;
+                if(alpha<=0){ clearInterval(interval); coverCtx.clearRect(0,0,W,H);}
+            },30);
         }
     </script>
 </body>
