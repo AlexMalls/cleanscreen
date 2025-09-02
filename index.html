@@ -50,8 +50,7 @@ body {
     top: 16px;
     right: 16px;
     width: 260px;
-    max-height: 90vh;
-    background: rgba(0,0,0,.85);
+    background: rgba(0,0,0,0.85);
     color: #fff;
     font-size: 14px;
     padding: 16px;
@@ -59,19 +58,29 @@ body {
     box-shadow: 0 0 10px rgba(0,0,0,0.5);
     border-radius: 8px;
     overflow: hidden;
-    transition: width 0.3s ease, max-height 0.3s ease;
+    transition: width 0.3s ease;
+    z-index: 10;
 }
 #sidebar.collapsed {
-    width: 40px;
+    width: 40px; /* só a setinha aparece */
     padding: 8px;
-    overflow: hidden;
 }
-#sidebar h3 { margin:0 0 8px; font-size:16px; border-bottom:1px solid #555; padding-bottom:6px; }
-#sidebar p { margin:8px 0; word-break: break-all; }
-#sidebar #toggleBtn {
+#sidebar h3,
+#sidebar p,
+#sidebar hr {
+    transition: opacity 0.3s ease;
+}
+#sidebar.collapsed h3,
+#sidebar.collapsed p,
+#sidebar.collapsed hr {
+    opacity: 0;
+    pointer-events: none;
+}
+#toggleBtn {
     position: absolute;
-    top: 8px;
+    top: 50%;
     left: -20px;
+    transform: translateY(-50%);
     width: 20px;
     height: 20px;
     background: #222;
@@ -83,6 +92,7 @@ body {
     border-radius: 4px;
     font-weight: bold;
     user-select: none;
+    z-index: 11;
 }
 #status { font-size: 12px; color: #aaa; }
 </style>
@@ -293,14 +303,10 @@ function beep() {
 // ---------- Toggle sidebar ----------
 const sidebar = document.getElementById('sidebar');
 const toggleBtn = document.getElementById('toggleBtn');
+
 toggleBtn.addEventListener('click', () => {
-    if(sidebar.classList.contains('collapsed')) {
-        sidebar.classList.remove('collapsed');
-        toggleBtn.textContent = '◀';
-    } else {
-        sidebar.classList.add('collapsed');
-        toggleBtn.textContent = '▶';
-    }
+    sidebar.classList.toggle('collapsed');
+    toggleBtn.textContent = sidebar.classList.contains('collapsed') ? '▶' : '◀';
 });
 </script>
 </body>
