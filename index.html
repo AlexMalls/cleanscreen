@@ -19,6 +19,7 @@
             align-items: center;
             justify-content: center;
             font-family: Arial, sans-serif;
+            position: relative;
         }
         #stage {
             position: relative;
@@ -27,7 +28,7 @@
             box-shadow: 0 0 15px rgba(0,0,0,0.6);
             border-radius: 12px;
             overflow: hidden;
-            background: #111; /* visível enquanto imagem não carrega */
+            background: #111;
         }
         #bgCanvas, #coverCanvas {
             position: absolute;
@@ -76,10 +77,10 @@
             color: #aaa;
         }
 
-        /* Botão de início */
+        /* Botão de início fora do canvas */
         #startBtn {
             position: absolute;
-            top: 16px;
+            top: calc(50% - 250px - 40px); /* acima do topo do canvas */
             left: 50%;
             transform: translateX(-50%);
             padding: 10px 20px;
@@ -104,8 +105,11 @@
     <div id="stage">
         <canvas id="bgCanvas" width="800" height="500"></canvas>
         <canvas id="coverCanvas" width="800" height="500"></canvas>
-        <button id="startBtn">Começar a Raspadinha</button>
     </div>
+
+    <!-- Botão fora do canvas -->
+    <button id="startBtn">Começar a Raspadinha</button>
+
     <div id="sidebar">
         <h3>Configuração (debug)</h3>
         <p><b>Imagem:</b> <span id="imgPath"></span></p>
@@ -119,7 +123,6 @@
     </div>
     <div class="flash" id="flash"></div>
     <script>
-        // ---------- Defaults caso config.json falhe ----------
         const defaultConfig = {
             image: "assets/imagens/premio.gif",
             fallbackImage: "https://picsum.photos/800/500",
@@ -129,7 +132,6 @@
             clearThreshold: 0.8
         };
 
-        // ---------- DOM ----------
         const bgCanvas = document.getElementById('bgCanvas');
         const coverCanvas = document.getElementById('coverCanvas');
         const bgCtx = bgCanvas.getContext('2d');
@@ -149,9 +151,8 @@
         let isDrawing = false;
         let gameEnded = false;
         let moveTick = 0;
-        let inputEnabled = false; // bloqueio inicial
+        let inputEnabled = false;
 
-        // ---------- Carregar config ----------
         (async function init() {
             try {
                 const res = await fetch('config.json', { cache: 'no-store' });
@@ -167,16 +168,14 @@
         })();
 
         function start() {
-            // Sidebar
             imgPathEl.textContent = config.image;
             soundPathEl.textContent = config.sound;
             radiusValEl.textContent = config.erase.radius;
             strengthValEl.textContent = config.erase.strength;
             thresholdValEl.textContent = (config.clearThreshold * 100) + "%";
 
-            // BG Image
             const img = new Image();
-            img.crossOrigin = "anonymous"; // evita taint
+            img.crossOrigin = "anonymous";
             img.onload = () => {
                 bgCtx.fillStyle = "#111";
                 bgCtx.fillRect(0, 0, W, H);
@@ -197,18 +196,16 @@
             };
             img.src = config.image;
 
-            // Som
             audio = new Audio(config.sound);
             audio.onerror = () => {
                 statusEl.textContent += " • Som indisponível. Usando beep interno.";
-                audio = null; // forçar beep WebAudio
+                audio = null;
             };
 
-            // Eventos
             bindInput();
         }
 
-        // Libera input após botão ser clicado
+        // Clique libera a raspadinha
         startBtn.addEventListener('click', () => {
             inputEnabled = true;
             startBtn.style.display = 'none';
@@ -237,34 +234,28 @@
         }
 
         function bindInput() {
-            // mouse
             coverCanvas.addEventListener('mousedown', e => {
                 if (!inputEnabled) return;
                 isDrawing = true;
-                const p = getPos(e);
-                scratch(p.x, p.y);
+                scratch(getPos(e).x, getPos(e).y);
             });
             window.addEventListener('mouseup', () => isDrawing = false);
             coverCanvas.addEventListener('mousemove', e => {
                 if (!isDrawing || !inputEnabled) return;
-                const p = getPos(e);
-                scratch(p.x, p.y);
+                scratch(getPos(e).x, getPos(e).y);
                 if ((++moveTick % 3) === 0) checkCleared();
             });
 
-            // touch
             coverCanvas.addEventListener('touchstart', e => {
                 if (!inputEnabled) return;
                 isDrawing = true;
-                const p = getPos(e);
-                scratch(p.x, p.y);
+                scratch(getPos(e).x, getPos(e).y);
             }, { passive:true });
             coverCanvas.addEventListener('touchend', () => isDrawing = false, {passive:true});
             coverCanvas.addEventListener('touchmove', e => {
                 if (!isDrawing || !inputEnabled) return;
                 e.preventDefault();
-                const p = getPos(e);
-                scratch(p.x, p.y);
+                scratch(getPos(e).x, getPos(e).y);
                 if ((++moveTick % 3) === 0) checkCleared();
             }, { passive:false });
         }
@@ -313,7 +304,7 @@
                 o.connect(g).connect(ac.destination);
                 o.start();
                 o.stop(ac.currentTime + 0.36);
-            } catch(e){ /* silencioso */ }
+            } catch(e){}
         }
     </script>
 </body>
