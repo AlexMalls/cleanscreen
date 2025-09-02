@@ -13,7 +13,7 @@
     #stage {
       position: relative; width: var(--w); height: var(--h);
       box-shadow: 0 0 15px rgba(0,0,0,0.6); border-radius: 12px; overflow: hidden;
-      background: #111; /* visível enquanto imagem não carrega */
+      background: #111;
     }
     #bgCanvas, #coverCanvas {
       position:absolute; inset:0; width:100%; height:100%;
@@ -31,6 +31,19 @@
     #sidebar h3 { margin:0 0 8px; font-size:16px; border-bottom:1px solid #555; padding-bottom:6px; }
     #sidebar p { margin:8px 0; word-break: break-all; }
     #status { font-size:12px; color:#aaa; }
+
+    /* Overlay inicial */
+    #intro {
+      position: fixed;
+      inset: 0;
+      background: black;
+      z-index: 999;
+      animation: fadeOut 6s ease forwards;
+    }
+    @keyframes fadeOut {
+      0% { opacity: 1; }
+      100% { opacity: 0; visibility: hidden; }
+    }
   </style>
 </head>
 <body>
@@ -52,9 +65,9 @@
   </div>
 
   <div class="flash" id="flash"></div>
+  <div id="intro"></div>
 
   <script>
-    // ---------- Defaults caso config.json falhe ----------
     const defaultConfig = {
       image: "assets/imagens/premio.gif",
       fallbackImage: "https://picsum.photos/800/500",
@@ -64,12 +77,12 @@
       clearThreshold: 0.8
     };
 
-    // ---------- DOM ----------
     const bgCanvas = document.getElementById('bgCanvas');
     const coverCanvas = document.getElementById('coverCanvas');
     const bgCtx = bgCanvas.getContext('2d');
     const coverCtx = coverCanvas.getContext('2d', { willReadFrequently: true });
     const flash = document.getElementById('flash');
+    const intro = document.getElementById('intro');
 
     const imgPathEl = document.getElementById('imgPath');
     const soundPathEl = document.getElementById('soundPath');
@@ -86,8 +99,8 @@
     let isDrawing = false;
     let gameEnded = false;
     let moveTick = 0;
+    let inputEnabled = false; // 🔒 trava inicial
 
-    // ---------- Carregar config ----------
     (async function init(){
       try {
         const res = await fetch('config.json', { cache: 'no-store' });
@@ -103,21 +116,17 @@
     })();
 
     function start(){
-      // Sidebar
       imgPathEl.textContent = config.image;
       soundPathEl.textContent = config.sound;
       radiusValEl.textContent = config.erase.radius;
       strengthValEl.textContent = config.erase.strength;
       thresholdValEl.textContent = (config.clearThreshold * 100) + "%";
 
-      // BG Image
       const img = new Image();
-      img.crossOrigin = "anonymous"; // evita taint quando usar fallback remoto
+      img.crossOrigin = "anonymous";
       img.onload = () => {
         bgCtx.clearRect(0,0,W,H);
         bgCtx.drawImage(img, 0, 0, W, H);
-
-        // Capa preta para raspar (canvas superior)
         coverCtx.globalCompositeOperation = 'source-over';
         coverCtx.fillStyle = 'rgba(0,0,0,1)';
         coverCtx.fillRect(0, 0, W, H);
@@ -128,14 +137,17 @@
       };
       img.src = config.image;
 
-      // Som
       audio = new Audio(config.sound);
       audio.onerror = () => {
         statusEl.textContent += " • Som indisponível. Usando beep interno.";
-        audio = null; // forçar beep WebAudio
+        audio = null;
       };
 
-      // Eventos
+      // Ativar inputs só depois de 6s
+      setTimeout(() => { 
+        inputEnabled = true; 
+      }, 6000);
+
       bindInput();
     }
 
@@ -148,10 +160,10 @@
     }
 
     function scratch(x, y) {
+      if (!inputEnabled) return; // 🔒 trava inicial
       coverCtx.globalCompositeOperation = "destination-out";
       const r = config.erase.radius;
       const g = coverCtx.createRadialGradient(x, y, 0, x, y, r);
-      // força controla a opacidade apagada por passada (acumula em múltiplas passadas)
       const s = Math.max(0.05, Math.min(1, config.erase.strength));
       g.addColorStop(0, `rgba(0,0,0,${s})`);
       g.addColorStop(1, 'rgba(0,0,0,0)');
@@ -163,21 +175,19 @@
     }
 
     function bindInput(){
-      // mouse
-      coverCanvas.addEventListener('mousedown', e => { isDrawing = true; const p = getPos(e); scratch(p.x, p.y); });
+      coverCanvas.addEventListener('mousedown', e => { if (!inputEnabled) return; isDrawing = true; scratch(...Object.values(getPos(e))); });
       window.addEventListener('mouseup', () => isDrawing = false);
       coverCanvas.addEventListener('mousemove', e => {
-        if (!isDrawing) return;
+        if (!isDrawing || !inputEnabled) return;
         const p = getPos(e);
         scratch(p.x, p.y);
-        if ((++moveTick % 3) === 0) checkCleared(); // leve throtlle
+        if ((++moveTick % 3) === 0) checkCleared();
       });
 
-      // touch
-      coverCanvas.addEventListener('touchstart', e => { isDrawing = true; const p = getPos(e); scratch(p.x, p.y); }, {passive:true});
+      coverCanvas.addEventListener('touchstart', e => { if (!inputEnabled) return; isDrawing = true; scratch(...Object.values(getPos(e))); }, {passive:true});
       coverCanvas.addEventListener('touchend', () => isDrawing = false, {passive:true});
       coverCanvas.addEventListener('touchmove', e => {
-        if (!isDrawing) return;
+        if (!isDrawing || !inputEnabled) return;
         e.preventDefault();
         const p = getPos(e);
         scratch(p.x, p.y);
@@ -186,7 +196,6 @@
     }
 
     function checkCleared(){
-      // mede apenas a capa (alfa 0 = já raspado)
       const data = coverCtx.getImageData(0, 0, W, H).data;
       let total = data.length / 4;
       let cleared = 0;
@@ -216,7 +225,6 @@
       }
     }
 
-    // Beep de fallback (WebAudio)
     function beep(){
       try{
         const Actx = window.AudioContext || window.webkitAudioContext;
@@ -229,7 +237,7 @@
         g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + 0.35);
         o.connect(g).connect(ac.destination);
         o.start(); o.stop(ac.currentTime + 0.36);
-      } catch(e){ /* silencioso */ }
+      } catch(e){}
     }
   </script>
 </body>
