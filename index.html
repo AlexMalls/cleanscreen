@@ -264,8 +264,9 @@
             const data = coverCtx.getImageData(0, 0, W, H).data;
             let total = data.length / 4;
             let cleared = 0;
+            const thresholdAlpha = 50; // pixels quase transparentes contam como revelados
             for (let i = 3; i < data.length; i += 4) {
-                if (data[i] === 0) cleared++;
+                if (data[i] <= thresholdAlpha) cleared++;
             }
             const percent = cleared / total;
             progressValEl.textContent = (percent * 100).toFixed(1) + "%";
@@ -309,4 +310,5 @@
     </script>
 </body>
 </html>
+
 
