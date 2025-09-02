@@ -123,6 +123,7 @@
         let isDrawing = false;
         let gameEnded = false;
         let moveTick = 0;
+        let inputEnabled = false; // bloqueia input até canvas preto
 
         // ---------- Carregar config ----------
         (async function init() {
@@ -151,12 +152,18 @@
             const img = new Image();
             img.crossOrigin = "anonymous"; // evita taint quando usar fallback remoto
             img.onload = () => {
-                bgCtx.clearRect(0,0,W,H);
+                // Preenche fundo consistente antes de desenhar a imagem
+                bgCtx.fillStyle = "#111";
+                bgCtx.fillRect(0, 0, W, H);
+
                 bgCtx.drawImage(img, 0, 0, W, H);
-                // Capa preta para raspar (canvas superior)
+
                 coverCtx.globalCompositeOperation = 'source-over';
                 coverCtx.fillStyle = 'rgba(0,0,0,1)';
                 coverCtx.fillRect(0, 0, W, H);
+
+                // Verifica se o canvas já ficou preto
+                checkCanvasReady();
             };
             img.onerror = () => {
                 statusEl.textContent = "Imagem principal indisponível. Usando fallback.";
@@ -173,6 +180,18 @@
 
             // Eventos
             bindInput();
+        }
+
+        function checkCanvasReady() {
+            const data = bgCtx.getImageData(0, 0, 1, 1).data;
+            if (data[0] === 0 && data[1] === 0 && data[2] === 0) {
+                // canvas preto detectado, libera input após 1s
+                setTimeout(() => {
+                    inputEnabled = true;
+                }, 1000);
+            } else {
+                setTimeout(checkCanvasReady, 50); // verifica novamente
+            }
         }
 
         function getPos(e) {
@@ -200,27 +219,29 @@
         function bindInput() {
             // mouse
             coverCanvas.addEventListener('mousedown', e => {
+                if (!inputEnabled) return;
                 isDrawing = true;
                 const p = getPos(e);
                 scratch(p.x, p.y);
             });
             window.addEventListener('mouseup', () => isDrawing = false);
             coverCanvas.addEventListener('mousemove', e => {
-                if (!isDrawing) return;
+                if (!isDrawing || !inputEnabled) return;
                 const p = getPos(e);
                 scratch(p.x, p.y);
-                if ((++moveTick % 3) === 0) checkCleared(); // leve throtlle
+                if ((++moveTick % 3) === 0) checkCleared();
             });
 
             // touch
             coverCanvas.addEventListener('touchstart', e => {
+                if (!inputEnabled) return;
                 isDrawing = true;
                 const p = getPos(e);
                 scratch(p.x, p.y);
             }, { passive:true });
             coverCanvas.addEventListener('touchend', () => isDrawing = false, {passive:true});
             coverCanvas.addEventListener('touchmove', e => {
-                if (!isDrawing) return;
+                if (!isDrawing || !inputEnabled) return;
                 e.preventDefault();
                 const p = getPos(e);
                 scratch(p.x, p.y);
@@ -258,7 +279,6 @@
             }
         }
 
-        // Beep de fallback (WebAudio)
         function beep() {
             try {
                 const Actx = window.AudioContext || window.webkitAudioContext;
