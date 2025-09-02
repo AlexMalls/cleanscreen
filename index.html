@@ -123,7 +123,7 @@
         let isDrawing = false;
         let gameEnded = false;
         let moveTick = 0;
-        let inputEnabled = false; // bloqueia input até canvas preto
+        let inputEnabled = false; // bloqueio inicial
 
         // ---------- Carregar config ----------
         (async function init() {
@@ -150,9 +150,9 @@
 
             // BG Image
             const img = new Image();
-            img.crossOrigin = "anonymous"; // evita taint quando usar fallback remoto
+            img.crossOrigin = "anonymous"; // evita taint
             img.onload = () => {
-                // Preenche fundo consistente antes de desenhar a imagem
+                // fundo consistente
                 bgCtx.fillStyle = "#111";
                 bgCtx.fillRect(0, 0, W, H);
 
@@ -162,8 +162,10 @@
                 coverCtx.fillStyle = 'rgba(0,0,0,1)';
                 coverCtx.fillRect(0, 0, W, H);
 
-                // Verifica se o canvas já ficou preto
-                checkCanvasReady();
+                // Libera input automaticamente após 6 segundos
+                setTimeout(() => {
+                    inputEnabled = true;
+                }, 6000);
             };
             img.onerror = () => {
                 statusEl.textContent = "Imagem principal indisponível. Usando fallback.";
@@ -180,18 +182,6 @@
 
             // Eventos
             bindInput();
-        }
-
-        function checkCanvasReady() {
-            const data = bgCtx.getImageData(0, 0, 1, 1).data;
-            if (data[0] === 0 && data[1] === 0 && data[2] === 0) {
-                // canvas preto detectado, libera input após 1s
-                setTimeout(() => {
-                    inputEnabled = true;
-                }, 1000);
-            } else {
-                setTimeout(checkCanvasReady, 50); // verifica novamente
-            }
         }
 
         function getPos(e) {
