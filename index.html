@@ -1,219 +1,228 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<meta charset="UTF-8">
-<title>Raspadinha</title>
-<style>
-  body {
-    margin: 0;
-    display: flex;
-    height: 100vh;
-    justify-content: center;
-    align-items: center;
-    background-color: #aaa;
-    font-family: sans-serif;
-  }
-  #container {
-    position: relative;
-  }
-  #canvas {
-    border: 2px solid #000;
-    cursor: crosshair;
-  }
-  #panel {
-    position: absolute;
-    top: 0;
-    right: -220px;
-    width: 200px;
-    background: rgba(255,255,255,0.9);
-    border: 1px solid #ccc;
-    font-size: 14px;
-    padding: 10px;
-  }
-  #flash {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: white;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.5s;
-  }
-  #flash.active {
-    opacity: 0.8;
-  }
-  #intro {
-    position: fixed;
-    inset: 0;
-    background: black;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    color: white;
-    font-size: 2em;
-    z-index: 1000;
-    transition: opacity 1s;
-  }
-  #intro.fade-out {
-    opacity: 0;
-    pointer-events: none;
-  }
-</style>
+  <meta charset="UTF-8">
+  <title>Raspadinha</title>
+  <style>
+    body {
+      margin: 0;
+      display: flex;
+      height: 100vh;
+      justify-content: center;
+      align-items: center;
+      background-color: #aaa;
+      font-family: sans-serif;
+    }
+    #container {
+      position: relative;
+    }
+    #canvas {
+      border: 2px solid #000;
+      cursor: crosshair;
+    }
+    #panel {
+      position: absolute;
+      top: 0;
+      right: -220px;
+      width: 200px;
+      background: rgba(255,255,255,0.9);
+      border: 1px solid #ccc;
+      font-size: 14px;
+      padding: 10px;
+    }
+    #flash {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: white;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.5s;
+    }
+    #flash.active {
+      opacity: 0.8;
+    }
+    #intro {
+      position: fixed;
+      inset: 0;
+      background: black;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      color: white;
+      font-size: 2em;
+      z-index: 1000;
+      transition: opacity 1s;
+    }
+    #intro.fade-out {
+      opacity: 0;
+      pointer-events: none;
+    }
+  </style>
 </head>
 <body>
-<div id="intro">Carregando...</div>
-<div id="container">
-  <canvas id="canvas" width="800" height="500"></canvas>
-  <div id="flash"></div>
-  <div id="panel">
-    <p>Intensidade: <span id="intensity"></span></p>
-    <p>Meta (%): <span id="goal"></span></p>
-    <p>Revelado (%): <span id="currentProgress">0</span></p>
-    <p>Assets: <span id="assetPath"></span></p>
+  <div id="intro">Carregando...</div>
+  <div id="container">
+    <canvas id="canvas" width="800" height="500"></canvas>
+    <div id="flash"></div>
+    <div id="panel">
+      <p>Intensidade: <span id="intensity"></span></p>
+      <p>Meta (%): <span id="goal"></span></p>
+      <p>Revelado (%): <span id="currentProgress">0</span></p>
+      <p>Assets: <span id="assetPath"></span></p>
+    </div>
   </div>
-</div>
 
-<script>
-const canvas = document.getElementById("canvas");
-const ctx = canvas.getContext("2d");
-const flash = document.getElementById("flash");
-const intro = document.getElementById("intro");
+  <script>
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d");
+    const flash = document.getElementById("flash");
+    const intro = document.getElementById("intro");
 
-let isDrawing = false;
-let completed = false;
-let gameReady = false; // só ativa depois do preload
-let config = {};
-let bgImage = null;
-let audio = null;
+    let config = {};
+    let bgImage = null;
+    let audio = null;
 
-// Helper para posição do cursor / toque
-function getPos(e) {
-  const rect = canvas.getBoundingClientRect();
-  if (e.touches) {
-    return {
-      x: e.touches[0].clientX - rect.left,
-      y: e.touches[0].clientY - rect.top
-    };
-  } else {
-    return {
-      x: e.clientX - rect.left,
-      y: e.clientY - rect.top
-    };
-  }
-}
+    let isDrawing = false;
+    let completed = false;
+    let lastCheck = 0;
+    let gameReady = false; // controla se pode interagir
 
-// Raspagem
-function scratch(x, y) {
-  if (!gameReady) return;
-  ctx.globalCompositeOperation = "destination-out";
-  const grad = ctx.createRadialGradient(x, y, 0, x, y, config.eraseIntensity);
-  grad.addColorStop(0, "rgba(0,0,0,0.9)");
-  grad.addColorStop(1, "rgba(0,0,0,0)");
-  ctx.fillStyle = grad;
-  ctx.beginPath();
-  ctx.arc(x, y, config.eraseIntensity, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.globalCompositeOperation = "source-over";
-}
+    // Preload config e assets
+    async function preload() {
+      // Config JSON (se não existir, usa defaults)
+      try {
+        const res = await fetch("config.json");
+        config = await res.json();
+      } catch {
+        config = {
+          assetsPath: "assets/imagens/bg.png",
+          audioPath: "assets/sons/win.mp3",
+          eraseIntensity: 40,
+          clearThreshold: 80
+        };
+      }
 
-// Checa percentual revelado
-let lastCheck = 0;
-function checkCleared(force = false) {
-  const now = Date.now();
-  if (!force && now - lastCheck < 200) return;
-  lastCheck = now;
+      // Atualizar painel
+      document.getElementById("intensity").textContent = config.eraseIntensity;
+      document.getElementById("goal").textContent = config.clearThreshold;
+      document.getElementById("assetPath").textContent = config.assetsPath;
 
-  const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
-  let total = pixels.length / 4;
-  let cleared = 0;
-  for (let i = 3; i < pixels.length; i += 4) {
-    if (pixels[i] < 128) cleared++;
-  }
-  const percent = (cleared / total) * 100;
-  document.getElementById("currentProgress").textContent = percent.toFixed(1);
+      // Preload imagem
+      bgImage = new Image();
+      const imgLoaded = new Promise((resolve) => {
+        bgImage.onload = resolve;
+        bgImage.onerror = resolve; // fallback
+      });
+      bgImage.src = config.assetsPath;
 
-  if (!completed && percent >= config.clearThreshold) {
-    completed = true;
-    triggerWin();
-  }
-}
+      // Preload áudio
+      audio = new Audio(config.audioPath);
+      audio.onerror = () => { audio = new Audio(); };
 
-// Trigger vitória
-function triggerWin() {
-  if (audio) audio.play().catch(()=>{});
-  flash.classList.add("active");
-  setTimeout(() => flash.classList.remove("active"), 500);
-}
+      await imgLoaded;
 
-// Preload com fallback
-async function preload() {
-  try {
-    const res = await fetch("config.json");
-    config = await res.json();
-  } catch {
-    config = {
-      assetsPath: "assets/imagens/bg.png",
-      fallbackImage: "https://picsum.photos/800/500",
-      audioPath: "assets/sons/win.mp3",
-      fallbackAudio: "https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg",
-      eraseIntensity: 40,
-      clearThreshold: 80
-    };
-  }
+      // Desenha fundo e overlay preto
+      ctx.drawImage(bgImage, 0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "black";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  // Atualiza painel
-  document.getElementById("intensity").textContent = config.eraseIntensity;
-  document.getElementById("goal").textContent = config.clearThreshold;
-  document.getElementById("assetPath").textContent = config.assetsPath;
+      gameReady = true;
+    }
 
-  // Imagem
-  bgImage = new Image();
-  const imgLoaded = new Promise((resolve) => {
-    bgImage.onload = resolve;
-    bgImage.onerror = () => {
-      console.warn("Imagem principal indisponível. Usando fallback.");
-      bgImage.src = config.fallbackImage;
-      bgImage.onload = resolve;
-      bgImage.onerror = resolve; 
-    };
-  });
-  bgImage.src = config.assetsPath;
+    function scratch(x, y) {
+      ctx.globalCompositeOperation = "destination-out";
+      const grad = ctx.createRadialGradient(x, y, 0, x, y, config.eraseIntensity);
+      grad.addColorStop(0, "rgba(0,0,0,0.9)");
+      grad.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(x, y, config.eraseIntensity, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalCompositeOperation = "source-over";
+    }
 
-  // Áudio
-  audio = new Audio(config.audioPath);
-  audio.onerror = () => {
-    console.warn("Áudio principal indisponível. Usando fallback.");
-    audio = new Audio(config.fallbackAudio);
-  };
+    function checkCleared(force = false) {
+      const now = Date.now();
+      if (!force && now - lastCheck < 200) return;
+      lastCheck = now;
 
-  await imgLoaded;
+      const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+      let total = pixels.length / 4;
+      let cleared = 0;
 
-  // Desenha fundo + overlay preto inicial
-  ctx.drawImage(bgImage, 0, 0, canvas.width, canvas.height);
-  ctx.fillStyle = "black";
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+      for (let i = 3; i < pixels.length; i += 4) {
+        if (pixels[i] < 128) cleared++;
+      }
 
-  gameReady = true;
-}
+      const percent = (cleared / total) * 100;
+      document.getElementById("currentProgress").textContent = percent.toFixed(1);
 
-// Eventos de interação
-canvas.addEventListener("mousedown", e => { isDrawing = true; scratch(...Object.values(getPos(e))); checkCleared(true); });
-canvas.addEventListener("mousemove", e => { if(isDrawing) { scratch(...Object.values(getPos(e))); checkCleared(); } });
-canvas.addEventListener("mouseup", () => isDrawing = false);
-canvas.addEventListener("mouseleave", () => isDrawing = false);
-canvas.addEventListener("touchstart", e => { isDrawing = true; scratch(...Object.values(getPos(e))); checkCleared(true); }, {passive:true});
-canvas.addEventListener("touchmove", e => { if(isDrawing) { e.preventDefault(); scratch(...Object.values(getPos(e))); checkCleared(); } }, {passive:false});
-canvas.addEventListener("touchend", () => isDrawing = false);
+      if (!completed && percent >= config.clearThreshold) {
+        completed = true;
+        triggerWin();
+      }
+    }
 
-// Rodar preload e fade
-(async () => {
-  preload(); // roda em paralelo
-  setTimeout(() => {
-    intro.classList.add("fade-out"); // fade de 6s
-  }, 6000);
-})();
-</script>
+    function triggerWin() {
+      audio.play();
+      flash.classList.add("active");
+      setTimeout(() => flash.classList.remove("active"), 500);
+    }
+
+    function getPos(e) {
+      const rect = canvas.getBoundingClientRect();
+      if (e.touches) {
+        return {
+          x: e.touches[0].clientX - rect.left,
+          y: e.touches[0].clientY - rect.top
+        };
+      } else {
+        return {
+          x: e.clientX - rect.left,
+          y: e.clientY - rect.top
+        };
+      }
+    }
+
+    // Eventos
+    canvas.addEventListener("mousedown", (e) => {
+      if (!gameReady) return;
+      isDrawing = true;
+      scratch(...Object.values(getPos(e)));
+      checkCleared(true);
+    });
+    canvas.addEventListener("mousemove", (e) => {
+      if (!gameReady || !isDrawing) return;
+      scratch(...Object.values(getPos(e)));
+      checkCleared();
+    });
+    canvas.addEventListener("mouseup", () => isDrawing = false);
+    canvas.addEventListener("mouseleave", () => isDrawing = false);
+
+    canvas.addEventListener("touchstart", (e) => {
+      if (!gameReady) return;
+      isDrawing = true;
+      scratch(...Object.values(getPos(e)));
+      checkCleared(true);
+    });
+    canvas.addEventListener("touchmove", (e) => {
+      if (!gameReady || !isDrawing) return;
+      e.preventDefault();
+      scratch(...Object.values(getPos(e)));
+      checkCleared();
+    }, { passive: false });
+    canvas.addEventListener("touchend", () => isDrawing = false);
+
+    // Sequência: preload + intro
+    (async () => {
+      await preload();
+      setTimeout(() => {
+        intro.classList.add("fade-out");
+      }, 6000);
+    })();
+  </script>
 </body>
 </html>
