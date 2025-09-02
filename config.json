@@ -1,5 +1,10 @@
 {
-  "image": "assets/imagens/premio.gif",
+  "images": [
+    "assets/imagens/premio01.gif",
+    "assets/imagens/premio02.gif",
+    "assets/imagens/premio03.gif",
+    "assets/imagens/premio04.gif"
+  ],
   "fallbackImage": "https://picsum.photos/800/500",
   "sound": "assets/sons/sucesso.mp3",
   "fallbackSound": "https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg",
@@ -9,21 +14,3 @@
   },
   "clearThreshold": 0.35
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
