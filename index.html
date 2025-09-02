@@ -307,7 +307,7 @@
             const imgData = coverCtx.getImageData(0,0,W,H);
             const data = imgData.data;
             let alphaFactor = 1; // começa com alpha total
-            const step = 0.02; // quanto reduzir por frame (0.02 = 2% por frame)
+            const step = 0.002; // quanto reduzir por frame (0.02 = 2% por frame)
             
             function fade() {
                 alphaFactor -= step;
@@ -327,4 +327,5 @@
     </script>
 </body>
 </html>
+
 
