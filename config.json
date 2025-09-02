@@ -7,8 +7,9 @@
     "radius": 40,
     "strength": 0.3
   },
-  "clearThreshold": 0.15
+  "clearThreshold": 0.45
 }
+
 
 
 
